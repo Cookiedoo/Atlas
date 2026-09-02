@@ -25,6 +25,8 @@ git push
 
 The hosted page is a read-only snapshot because GitHub Pages cannot run Python, SQLite, PyTorch, or Ollama. The local dashboard remains live and can execute Atlas-MoE iterations.
 
+After enabling Pages in the repository settings, choose **GitHub Actions** as the Pages source. The workflow validates the static bundle before deployment and cancels superseded deployments during frequent Atlas checkpoint pushes.
+
 ## Ollama and model checkpoints
 
 Atlas defaults to the deterministic mock. To connect Ollama through its local OpenAI-compatible endpoint:

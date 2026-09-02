@@ -10,6 +10,10 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   deploy:
     environment:
@@ -24,6 +28,12 @@ jobs:
           mkdir -p site/data
           cp atlas/web_static/index.html atlas/web_static/styles.css atlas/web_static/app.js site/
           cp docs/data/dashboard.json site/data/dashboard.json
+      - name: Validate static site
+        run: |
+          test -s site/index.html
+          test -s site/styles.css
+          test -s site/app.js
+          python -m json.tool site/data/dashboard.json >/dev/null
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
