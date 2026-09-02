@@ -11,7 +11,7 @@ from .store import ExperimentStore
 from .config import Settings
 from .model import create_model
 from .export import export_model_bundle
-from .moe_store import evolve_router
+from .moe_store import evolve_router, run_moe_iteration
 
 
 def status_text(store: ExperimentStore) -> str:
@@ -52,7 +52,7 @@ def status_text(store: ExperimentStore) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="atlas")
-    parser.add_argument("command", choices=["init", "run", "experiment", "evaluate", "benchmark", "candidate", "champion", "discoveries", "capabilities", "status", "web", "export", "moe-demo"])
+    parser.add_argument("command", choices=["init", "run", "experiment", "evaluate", "benchmark", "candidate", "champion", "discoveries", "capabilities", "status", "web", "export", "moe-demo", "moe-run"])
     parser.add_argument("--db", default=".atlas/atlas.db")
     parser.add_argument("--count", type=int, default=1)
     parser.add_argument("--host", default="127.0.0.1")
@@ -72,6 +72,8 @@ def main() -> None:
             print(export_model_bundle(Path.cwd(), args.output))
         elif args.command == "moe-demo":
             print(evolve_router(Path("model")))
+        elif args.command == "moe-run":
+            print(run_moe_iteration(store, Path("model"), Path.cwd(), args.push_model))
         elif args.command in {"run", "experiment"}:
             settings = Settings.from_environment()
             for result in AtlasController(store, settings.experiment_workspace, create_model(settings), Path.cwd(), args.push_model).run(args.count):

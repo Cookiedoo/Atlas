@@ -16,7 +16,7 @@ from atlas.export import export_model_bundle, manifest_for, write_manifest
 from atlas.model import create_model
 from atlas.config import Settings
 from atlas.moe import AtlasMoE, torch
-from atlas.moe_store import evolve_router
+from atlas.moe_store import evolve_router, run_moe_iteration
 
 
 class AtlasV1Tests(unittest.TestCase):
@@ -99,6 +99,16 @@ class AtlasV1Tests(unittest.TestCase):
         self.assertNotEqual(result["parent_router"], result["child_router"])
         self.assertEqual(result["unchanged_expert_components"], 4)
         self.assertTrue(result["selected_experts"])
+
+    @unittest.skipUnless(torch is not None, "PyTorch optional dependency is not installed")
+    def test_moe_iteration_persists_atlas_evidence(self):
+        result = run_moe_iteration(self.store, Path(self.temp.name) / "model", seed=3)
+        self.assertEqual(result["outcome"], "IMPROVEMENT")
+        self.assertTrue(result["router_changed"])
+        self.assertEqual(len(self.store.rows("experiments")), 2)
+        self.assertEqual(len(self.store.rows("evaluations")), 1)
+        self.assertIsNotNone(self.store.latest_champion())
+        self.assertEqual(len(self.store.rows("artifacts")), 6)
 
 
 if __name__ == "__main__":
