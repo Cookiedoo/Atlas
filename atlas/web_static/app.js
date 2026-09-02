@@ -3,18 +3,20 @@ const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
 const formatMetric = (value, key) => key.endsWith('_ms') ? `${Number(value).toFixed(1)} ms` : typeof value === 'number' ? value.toFixed(2) : value;
 
+async function loadJson(path) { const response = await fetch(path); if (!response.ok) throw new Error(`${response.status} ${path}`); return response.json(); }
 async function load() {
-  const [dashboardResponse, testsResponse] = await Promise.all([fetch('/api/dashboard'), fetch('/api/tests')]);
-  if (!dashboardResponse.ok || !testsResponse.ok) throw new Error('backend request failed');
-  const [dashboard, tests] = await Promise.all([dashboardResponse.json(), testsResponse.json()]);
-  state.dashboard = dashboard; state.tests = tests; state.lastSuccessAt = Date.now(); setHealth('ONLINE');
+  let dashboard, tests, staticMode = false;
+  try { [dashboard, tests] = await Promise.all([loadJson('/api/dashboard'), loadJson('/api/tests')]); }
+  catch (error) { const snapshot = await loadJson(new URL('./data/dashboard.json', document.baseURI)); dashboard = snapshot.dashboard; tests = snapshot.tests; staticMode = true; }
+  dashboard.static_mode = staticMode;
+  state.dashboard = dashboard; state.tests = tests; state.lastSuccessAt = Date.now(); setHealth(staticMode ? 'STATIC' : 'ONLINE');
   if (state.selectedTestId && !tests.some((test) => test.evaluation.id === state.selectedTestId)) state.selectedTestId = null;
   renderDashboard(); renderTests();
 }
 function setHealth(status) { $('health-label').textContent = status; $('health').className = `live ${status.toLowerCase()}`; $('health-age').textContent = status === 'ONLINE' ? ' synced' : status === 'STALE' ? ' no recent sync' : status === 'OFFLINE' ? ' backend unavailable' : ' waiting for sync'; }
 function renderDashboard() {
   const d = state.dashboard, current = state.tests.find((test) => test.evaluation.id === state.selectedTestId) || d.current_test, metrics = current?.evaluation?.metrics || {};
-  const job = d.job || { status: 'idle' }; $('run-moe').disabled = job.status === 'running'; $('run-status').textContent = job.status === 'running' ? 'Running tensor mutation...' : job.status === 'succeeded' ? 'Iteration complete' : job.status === 'failed' ? `Failed: ${job.error}` : job.status === 'rejected' ? job.error : 'Ready';
+  const job = d.job || { status: 'idle' }; $('run-moe').hidden = d.static_mode; $('run-moe').disabled = job.status === 'running'; $('run-status').textContent = d.static_mode ? 'Static snapshot' : job.status === 'running' ? 'Running tensor mutation...' : job.status === 'succeeded' ? 'Iteration complete' : job.status === 'failed' ? `Failed: ${job.error}` : job.status === 'rejected' ? job.error : 'Ready';
   $('version').textContent = d.current_version ? `v${d.current_version.version}` : '--'; $('model-marker').textContent = `MODEL ${d.model || '--'}`;
   $('headline').textContent = d.model ? `${d.model} / ${d.test_counts.total ? `test ${d.current_test_number}` : 'ready'}` : 'Atlas is ready';
   $('subhead').textContent = d.current_version ? d.current_version.name : 'Initialize Atlas and run the first experiment.';

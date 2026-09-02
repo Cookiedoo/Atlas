@@ -14,6 +14,17 @@ py -3 -m atlas.cli web --db .atlas/atlas.db
 
 Open `http://127.0.0.1:8765` for the local dashboard. It refreshes every five seconds and shows the current benchmark/model state, latest test, metrics, discovery summary, and a scrollable library of every recorded test. Select a test to open its detail popup.
 
+GitHub Pages deployment is configured in `.github/workflows/pages.yml`. Export the latest local Atlas state before pushing dashboard data:
+
+```powershell
+py -3 -m atlas.cli export-dashboard --db .atlas/atlas.db --output docs/data/dashboard.json
+git add docs/data/dashboard.json
+git commit -m "Update dashboard snapshot"
+git push
+```
+
+The hosted page is a read-only snapshot because GitHub Pages cannot run Python, SQLite, PyTorch, or Ollama. The local dashboard remains live and can execute Atlas-MoE iterations.
+
 ## Ollama and model checkpoints
 
 Atlas defaults to the deterministic mock. To connect Ollama through its local OpenAI-compatible endpoint:
