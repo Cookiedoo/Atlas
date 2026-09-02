@@ -33,6 +33,7 @@ def dashboard_payload(store: ExperimentStore) -> dict[str, Any]:
         "current_version": {"id": benchmark["id"], "version": benchmark["version"], "name": benchmark["name"], "status": benchmark["status"]} if benchmark else None,
         "current_test_number": total,
         "test_counts": {"total": total, "passed": passed, "failed": failed},
+        "experiment_count": len(store.rows("experiments")),
         "current_test": test_detail(store, evaluation["id"]) if evaluation else None,
         "latest_discovery": _row(discovery),
         "capabilities": [{**_row(row), "score": _json(row["score"], {})} for row in store.rows("capabilities")[-10:]],
