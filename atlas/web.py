@@ -104,7 +104,9 @@ class AtlasHandler(BaseHTTPRequestHandler):
         elif path in {"/app.js", "/styles.css"}:
             self._static(path[1:], "text/javascript; charset=utf-8" if path.endswith("js") else "text/css; charset=utf-8")
         else:
-            self._send(b"Not found", "text/plain", HTTPStatus.NOT_FOUND)
+            content_type = "application/json" if path.startswith("/api/") else "text/plain"
+            body = json.dumps({"error": "not found", "path": path}).encode() if path.startswith("/api/") else b"Not found"
+            self._send(body, content_type, HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
         if urlparse(self.path).path != "/api/moe/iterations":
