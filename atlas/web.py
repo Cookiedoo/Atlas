@@ -21,6 +21,18 @@ def _row(row: Any) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+def candidate_display_name(row: Any) -> str:
+    configuration = _json(row["configuration"], {})
+    strategy = str(configuration.get("strategy", "candidate")).replace("_", " ").title()
+    return f"Atlas {strategy} Candidate #{row['id'][-4:].upper()}"
+
+
+def candidate_payload(row: Any) -> dict[str, Any] | None:
+    if not row:
+        return None
+    return {**dict(row), "name": candidate_display_name(row), "configuration": _json(row["configuration"], {})}
+
+
 def dashboard_payload(store: ExperimentStore) -> dict[str, Any]:
     benchmarks = [row for row in store.rows("benchmarks") if row["status"] == "current"]
     benchmark = benchmarks[-1] if benchmarks else store.latest("benchmarks")
@@ -37,7 +49,7 @@ def dashboard_payload(store: ExperimentStore) -> dict[str, Any]:
         "current_test": test_detail(store, evaluation["id"]) if evaluation else None,
         "latest_discovery": _row(discovery),
         "capabilities": [{**_row(row), "score": _json(row["score"], {})} for row in store.rows("capabilities")[-10:]],
-        "champion": _row(champion),
+        "champion": candidate_payload(champion),
         "model": experiment["model_identifier"] if experiment else None,
     }
 
@@ -53,7 +65,7 @@ def test_detail(store: ExperimentStore, evaluation_id: str) -> dict[str, Any] | 
     experiment = store.connection.execute("SELECT * FROM experiments WHERE id = ?", (evaluation["experiment_id"],)).fetchone()
     candidate = store.connection.execute("SELECT * FROM candidates WHERE id = ?", (evaluation["candidate_id"],)).fetchone()
     discovery = store.connection.execute("SELECT * FROM discoveries WHERE source_experiment_id = ? ORDER BY rowid DESC LIMIT 1", (evaluation["experiment_id"],)).fetchone()
-    return {"test_number": list(reversed([row["id"] for row in store.rows("evaluations")])).index(evaluation_id) + 1, "evaluation": {**dict(evaluation), "metrics": _json(evaluation["metrics"], {})}, "experiment": {**dict(experiment), "parameters": _json(experiment["parameters"], {}), "analysis": _json(experiment["analysis"], {})} if experiment else None, "candidate": {**dict(candidate), "configuration": _json(candidate["configuration"], {})} if candidate else None, "discovery": dict(discovery) if discovery else None}
+    return {"test_number": list(reversed([row["id"] for row in store.rows("evaluations")])).index(evaluation_id) + 1, "evaluation": {**dict(evaluation), "metrics": _json(evaluation["metrics"], {})}, "experiment": {**dict(experiment), "parameters": _json(experiment["parameters"], {}), "analysis": _json(experiment["analysis"], {})} if experiment else None, "candidate": candidate_payload(candidate), "discovery": dict(discovery) if discovery else None}
 
 
 class AtlasHandler(BaseHTTPRequestHandler):
