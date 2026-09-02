@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .loop import AtlasController
 from .benchmark import CodingBenchmark
+from .web import serve
 from .store import ExperimentStore
 
 
@@ -47,9 +48,11 @@ def status_text(store: ExperimentStore) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="atlas")
-    parser.add_argument("command", choices=["init", "run", "experiment", "evaluate", "benchmark", "candidate", "champion", "discoveries", "capabilities", "status"])
+    parser.add_argument("command", choices=["init", "run", "experiment", "evaluate", "benchmark", "candidate", "champion", "discoveries", "capabilities", "status", "web"])
     parser.add_argument("--db", default=".atlas/atlas.db")
     parser.add_argument("--count", type=int, default=1)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     store = ExperimentStore(args.db)
     try:
@@ -57,6 +60,8 @@ def main() -> None:
             if not store.latest("benchmarks"):
                 store.add_benchmark(CodingBenchmark().benchmark)
             print(f"initialized {Path(args.db).resolve()}")
+        elif args.command == "web":
+            serve(store, args.host, args.port)
         elif args.command in {"run", "experiment"}:
             for result in AtlasController(store).run(args.count):
                 print(result)

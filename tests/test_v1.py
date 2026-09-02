@@ -11,6 +11,7 @@ from atlas.models import Candidate, Experiment, new_id
 from atlas.sandbox import Sandbox
 from atlas.store import ExperimentStore
 from atlas.cli import status_text
+from atlas.web import dashboard_payload, tests_payload
 
 
 class AtlasV1Tests(unittest.TestCase):
@@ -62,6 +63,14 @@ class AtlasV1Tests(unittest.TestCase):
         self.assertIn("Current test: passed", display)
         self.assertIn("Champion: ", display)
         self.assertIn("Latest discovery: Strategy improved", display)
+
+    def test_dashboard_payload_contains_current_test_and_library(self):
+        AtlasController(self.store).run_one("improved")
+        dashboard = dashboard_payload(self.store)
+        self.assertEqual(dashboard["current_test_number"], 1)
+        self.assertEqual(dashboard["current_version"]["version"], "1")
+        self.assertEqual(dashboard["current_test"]["evaluation"]["metrics"]["capability_score"], 1.0)
+        self.assertEqual(len(tests_payload(self.store)), 1)
 
 
 if __name__ == "__main__":
