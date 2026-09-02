@@ -10,6 +10,9 @@ from .planner import ExperimentPlanner
 from .store import ExperimentStore
 from .model import MockModel
 from .checkpoint import ModelCheckpoint
+from .model import research_prompt
+from .research import compile_experiment, validate_proposal
+import json
 
 
 class AtlasController:
@@ -29,8 +32,11 @@ class AtlasController:
         parameters = {"strategy": strategy or self.planner.select(len(self.store.rows("experiments")), [dict(row) for row in self.store.rows("discoveries")])["strategy"]}
         experiment_id = new_id("exp")
         model_metadata = self.model.metadata()
-        self.model.generate(experiment_id + ": propose a concise research hypothesis", seed=0)
-        experiment = Experiment(experiment_id, "A deterministic candidate configuration can improve coding capability.", parameters, parent["id"] if parent else None, model_identifier=model_metadata.get("model", "mock-v1"), benchmark_id="coding", benchmark_version="1")
+        context = {"parent_candidate": parent["id"] if parent else None, "recent_discoveries": [dict(row) for row in self.store.rows("discoveries")[-3:]], "available_benchmarks": [{"id": row["id"], "version": row["version"]} for row in self.store.rows("benchmarks")]}
+        proposal = validate_proposal(json.loads(self.model.generate(research_prompt(context), seed=0)))
+        proposal = type(proposal)(**{**proposal.__dict__, "parameters": {**proposal.parameters, "strategy": parameters["strategy"]}})
+        available_benchmarks = {(row["id"], row["version"]) for row in self.store.rows("benchmarks")}
+        experiment = compile_experiment(proposal, experiment_id, parent["id"] if parent else None, model_metadata.get("model", "mock-v1"), available_benchmarks)
         candidate = Candidate(new_id("cand"), experiment.parent_candidate_id, experiment.experiment_id, experiment.parameters, experiment.model_identifier)
         self.store.add_candidate(candidate)
         evaluation = self.benchmark.evaluate(experiment.experiment_id, candidate.candidate_id, candidate.configuration)

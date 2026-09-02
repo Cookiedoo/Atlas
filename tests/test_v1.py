@@ -17,6 +17,7 @@ from atlas.model import create_model
 from atlas.config import Settings
 from atlas.moe import AtlasMoE, torch
 from atlas.moe_store import evolve_router, run_moe_iteration
+from atlas.research import compile_experiment, validate_proposal
 from atlas.web import MoeJobManager
 
 
@@ -98,6 +99,23 @@ class AtlasV1Tests(unittest.TestCase):
     def test_ollama_factory_uses_configured_model(self):
         model = create_model(Settings(model_provider="ollama", model_name="qwen", model_endpoint="http://127.0.0.1:11434"))
         self.assertEqual(model.metadata()["model"], "qwen")
+
+    def test_research_proposal_is_strict_and_compiles(self):
+        proposal = {
+            "hypothesis": "Routing diversity may improve generalization.", "observation": "One expert is selected repeatedly.", "mechanism": "A small router update changes expert allocation.",
+            "mutation": {"target": "router", "operation": "mutate", "magnitude": "Small"},
+            "prediction": {"primary": "Expert usage changes.", "secondary": "Capability is retained.", "failure_signal": "Usage does not change."}, "control": "Compare against the parent.", "evaluation": ["capability score"], "failure_modes": ["Regression"], "alternative_explanations": ["Noise"],
+            "information_value": "HIGH", "expected_capability_gain": "MEDIUM", "expected_generalization": "MEDIUM", "expected_efficiency_gain": "LOW", "novelty": "MEDIUM", "experiment_cost": "LOW", "confidence": "MEDIUM", "related_discoveries": [], "synthesis_opportunities": [], "reason_not_to_run": "Reject if benchmark is absent.", "parameters": {"strategy": "improved"}
+        }
+        parsed = validate_proposal(proposal)
+        compiled = compile_experiment(parsed, "exp-proposal", None, "mock-v1", {("coding", "1")})
+        self.assertEqual(compiled.hypothesis, proposal["hypothesis"])
+        self.assertEqual(compiled.parameters["mutation"]["target"], "router")
+        for forbidden in ("metrics", "passed", "outcome", "promotion"):
+            with self.assertRaises(ValueError):
+                validate_proposal({**proposal, forbidden: "model authority must be rejected"})
+        with self.assertRaises(ValueError):
+            compile_experiment(parsed, "exp-proposal", None, "mock-v1", set())
 
     @unittest.skipUnless(torch is not None, "PyTorch optional dependency is not installed")
     def test_real_moe_router_mutation_reconstructs_child(self):
