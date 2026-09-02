@@ -11,7 +11,7 @@ async function load() {
   if (state.selectedTestId && !tests.some((test) => test.evaluation.id === state.selectedTestId)) state.selectedTestId = null;
   renderDashboard(); renderTests();
 }
-function setHealth(status) { $('health-label').textContent = status; $('health').className = `live ${status.toLowerCase()}`; $('health-age').textContent = status === 'ONLINE' ? ' synced' : ''; }
+function setHealth(status) { $('health-label').textContent = status; $('health').className = `live ${status.toLowerCase()}`; $('health-age').textContent = status === 'ONLINE' ? ' synced' : status === 'STALE' ? ' no recent sync' : status === 'OFFLINE' ? ' backend unavailable' : ' waiting for sync'; }
 function renderDashboard() {
   const d = state.dashboard, current = state.tests.find((test) => test.evaluation.id === state.selectedTestId) || d.current_test, metrics = current?.evaluation?.metrics || {};
   $('version').textContent = d.current_version ? `v${d.current_version.version}` : '--'; $('model-marker').textContent = `MODEL ${d.model || '--'}`;

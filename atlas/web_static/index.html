@@ -8,11 +8,11 @@
 </head>
 <body>
   <main class="shell">
-    <header class="masthead"><div><p class="kicker">AUTONOMOUS RESEARCH ENGINE</p><h1>Atlas</h1></div><div id="health" class="live"><span class="dot"></span><span id="health-label">CHECKING</span><small id="health-age"></small></div></header>
-    <section class="hero"><div><p class="eyebrow">ATLAS / RESEARCH CONSOLE</p><h2 id="headline">Loading research state...</h2><p id="subhead" class="muted">Connecting to the local Atlas backend.</p></div><div class="version"><span>BENCHMARK</span><strong id="version">--</strong><small id="model-marker">MODEL --</small></div></section>
-    <section class="stats" id="stats"></section>
+    <header class="masthead"><div><p class="kicker">AUTONOMOUS RESEARCH ENGINE</p><h1>Atlas</h1></div><div id="health" class="live"><span class="dot"></span><span id="health-label">CHECKING</span><small id="health-age">waiting for sync</small></div></header>
+    <section class="hero"><div><p class="eyebrow">ATLAS / RESEARCH CONSOLE</p><h2 id="headline">Atlas is ready</h2><p id="subhead" class="muted">Reading the local research store.</p></div><div class="version"><span>BENCHMARK</span><strong id="version">--</strong><small id="model-marker">MODEL --</small></div></section>
+    <section class="stats" id="stats"><div class="stat"><label>Evaluations</label><strong>--</strong></div><div class="stat"><label>Passed</label><strong>--</strong></div><div class="stat"><label>Failed</label><strong>--</strong></div><div class="stat"><label>Experiments</label><strong>--</strong></div></section>
     <section class="grid">
-      <article class="panel current"><div class="panel-head"><div><p class="eyebrow">LATEST TEST</p><h3 id="test-title">No test yet</h3></div><span id="test-status" class="badge">WAITING</span></div><div id="test-metrics" class="metric-grid empty">No evaluation recorded.</div><button id="open-current" class="button" hidden>Open full test <span>↗</span></button></article>
+      <article class="panel current"><div class="panel-head"><div><p class="eyebrow">LATEST TEST</p><h3 id="test-title">No test yet</h3></div><span id="test-status" class="badge">WAITING</span></div><div id="test-metrics" class="metric-grid empty"><span>Awaiting evaluation data.</span></div><button id="open-current" class="button" hidden>Back to latest <span>↩</span></button></article>
       <article class="panel discovery"><div class="panel-head"><div><p class="eyebrow">LATEST DISCOVERY</p><h3>Research note</h3></div><span id="confidence" class="badge quiet">--</span></div><p id="discovery-text" class="discovery-text">No discovery recorded.</p><p id="discovery-meta" class="muted"></p></article>
     </section>
     <section class="library"><div class="library-head"><div><p class="eyebrow">EVIDENCE LIBRARY</p><h2>Every test</h2></div><span id="library-count" class="muted"></span></div><div id="tests" class="test-list"><div class="empty-state">No experiments recorded yet.</div></div></section>
