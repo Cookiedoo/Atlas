@@ -141,7 +141,8 @@ class MoeJobManager:
                 return False, {"status": "running", "error": "an Atlas-MoE iteration is already running"}
             clean = subprocess.run(["git", "status", "--porcelain"], cwd=self.repository, capture_output=True, text=True, timeout=10, check=False)
             if clean.returncode or clean.stdout.strip():
-                return False, {"status": "rejected", "error": "Git worktree must be clean before a browser iteration"}
+                self.job = {"status": "rejected", "started_at": None, "finished_at": None, "result": None, "error": "Git worktree must be clean before a browser iteration"}
+                return False, self.status()
             self.job = {"status": "running", "started_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), "finished_at": None, "result": None, "error": None}
         self.executor.submit(self._run)
         return True, self.status()
