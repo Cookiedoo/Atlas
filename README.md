@@ -29,6 +29,10 @@ Each run creates a content-addressed manifest under `model/manifests/` and a lea
 
 Create a portable download of the current model skeleton with `py -3 -m atlas.cli export --output model/atlas-model-bundle.zip`. This archive contains the manifests and learned summaries, while the actual Ollama model remains managed by Ollama.
 
+## Real Atlas-MoE substrate
+
+Install the optional local runtime with `py -3 -m pip install -e ".[torch]"`, then run `py -3 -m atlas.cli moe-demo`. The proof creates a real `AtlasMoE` parent with a shared core, coding/research/architecture/emergent experts, and top-1 router; changes router tensors; stores component blobs by SHA-256; creates a child manifest; reconstructs the child; and runs inference. Unchanged expert blobs are reused. This is Atlas-MoE, not HeliX-30B. Ollama remains an external teacher/inference provider.
+
 The store is append-oriented: experiment, candidate, evaluation, discovery, benchmark, and lineage records are inserted as new evidence. A candidate cannot promote after a failed evaluation or regression. The deterministic coding benchmark is intentionally small; its purpose is to exercise the research machinery, not to claim model intelligence.
 
 The model boundary is in `atlas/model.py`. `MockModel` is offline and deterministic. `OpenAICompatibleModel` can connect to a local `/v1/chat/completions` endpoint when configured by an integrating application. The sandbox uses a temporary workspace and controlled subprocess timeout; stronger Windows job-object resource limits can be added behind the same interface.

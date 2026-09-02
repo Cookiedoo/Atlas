@@ -15,6 +15,8 @@ from atlas.web import dashboard_payload, tests_payload
 from atlas.export import export_model_bundle, manifest_for, write_manifest
 from atlas.model import create_model
 from atlas.config import Settings
+from atlas.moe import AtlasMoE, torch
+from atlas.moe_store import evolve_router
 
 
 class AtlasV1Tests(unittest.TestCase):
@@ -89,6 +91,14 @@ class AtlasV1Tests(unittest.TestCase):
     def test_ollama_factory_uses_configured_model(self):
         model = create_model(Settings(model_provider="ollama", model_name="qwen", model_endpoint="http://127.0.0.1:11434"))
         self.assertEqual(model.metadata()["model"], "qwen")
+
+    @unittest.skipUnless(torch is not None, "PyTorch optional dependency is not installed")
+    def test_real_moe_router_mutation_reconstructs_child(self):
+        result = evolve_router(Path(self.temp.name) / "model", seed=7)
+        self.assertTrue(result["mutation"]["changed"])
+        self.assertNotEqual(result["parent_router"], result["child_router"])
+        self.assertEqual(result["unchanged_expert_components"], 4)
+        self.assertTrue(result["selected_experts"])
 
 
 if __name__ == "__main__":
