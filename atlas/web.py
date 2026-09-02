@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -8,6 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .store import ExperimentStore
+from .moe_store import run_moe_iteration
 
 
 STATIC_ROOT = Path(__file__).with_name("web_static")
@@ -73,6 +77,7 @@ def test_detail(store: ExperimentStore, evaluation_id: str) -> dict[str, Any] | 
 
 class AtlasHandler(BaseHTTPRequestHandler):
     store: ExperimentStore
+    job_manager: "MoeJobManager"
 
     def _send(self, body: bytes, content_type: str, status: int = HTTPStatus.OK) -> None:
         self.send_response(status)
@@ -84,7 +89,11 @@ class AtlasHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         path = urlparse(self.path).path
         if path == "/api/dashboard":
-            self._send(json.dumps(dashboard_payload(self.store)).encode(), "application/json")
+            payload = dashboard_payload(self.store)
+            payload["job"] = self.job_manager.status()
+            self._send(json.dumps(payload).encode(), "application/json")
+        elif path == "/api/moe/iterations/status":
+            self._send(json.dumps(self.job_manager.status()).encode(), "application/json")
         elif path == "/api/tests":
             self._send(json.dumps(tests_payload(self.store)).encode(), "application/json")
         elif path.startswith("/api/tests/"):
@@ -97,6 +106,13 @@ class AtlasHandler(BaseHTTPRequestHandler):
         else:
             self._send(b"Not found", "text/plain", HTTPStatus.NOT_FOUND)
 
+    def do_POST(self) -> None:
+        if urlparse(self.path).path != "/api/moe/iterations":
+            self._send(b"Not found", "text/plain", HTTPStatus.NOT_FOUND)
+            return
+        accepted, payload = self.job_manager.start()
+        self._send(json.dumps(payload).encode(), "application/json", HTTPStatus.ACCEPTED if accepted else HTTPStatus.CONFLICT)
+
     def _static(self, name: str, content_type: str) -> None:
         file_path = STATIC_ROOT / name
         if not file_path.is_file():
@@ -108,8 +124,44 @@ class AtlasHandler(BaseHTTPRequestHandler):
         return
 
 
+class MoeJobManager:
+    def __init__(self, database_path: str | Path, repository: str | Path):
+        self.database_path, self.repository = Path(database_path), Path(repository)
+        self.lock = threading.Lock()
+        self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="atlas-moe")
+        self.job = {"status": "idle", "started_at": None, "finished_at": None, "result": None, "error": None}
+
+    def status(self) -> dict[str, Any]:
+        with self.lock:
+            return dict(self.job)
+
+    def start(self) -> tuple[bool, dict[str, Any]]:
+        with self.lock:
+            if self.job["status"] == "running":
+                return False, {"status": "running", "error": "an Atlas-MoE iteration is already running"}
+            clean = subprocess.run(["git", "status", "--porcelain"], cwd=self.repository, capture_output=True, text=True, timeout=10, check=False)
+            if clean.returncode or clean.stdout.strip():
+                return False, {"status": "rejected", "error": "Git worktree must be clean before a browser iteration"}
+            self.job = {"status": "running", "started_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), "finished_at": None, "result": None, "error": None}
+        self.executor.submit(self._run)
+        return True, self.status()
+
+    def _run(self) -> None:
+        store = ExperimentStore(self.database_path)
+        try:
+            result = run_moe_iteration(store, self.repository / "model", self.repository, push=False)
+            with self.lock:
+                self.job.update({"status": "succeeded", "finished_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), "result": result})
+        except Exception as error:
+            with self.lock:
+                self.job.update({"status": "failed", "finished_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), "error": str(error)})
+        finally:
+            store.close()
+
+
 def serve(store: ExperimentStore, host: str = "127.0.0.1", port: int = 8765) -> None:
-    handler = type("BoundAtlasHandler", (AtlasHandler,), {"store": store})
+    job_manager = MoeJobManager(store.path, Path.cwd())
+    handler = type("BoundAtlasHandler", (AtlasHandler,), {"store": store, "job_manager": job_manager})
     server = HTTPServer((host, port), handler)
     print(f"Atlas dashboard: http://{host}:{server.server_port}")
     try:

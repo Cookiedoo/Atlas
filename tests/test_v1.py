@@ -17,6 +17,7 @@ from atlas.model import create_model
 from atlas.config import Settings
 from atlas.moe import AtlasMoE, torch
 from atlas.moe_store import evolve_router, run_moe_iteration
+from atlas.web import MoeJobManager
 
 
 class AtlasV1Tests(unittest.TestCase):
