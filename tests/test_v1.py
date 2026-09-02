@@ -12,6 +12,9 @@ from atlas.sandbox import Sandbox
 from atlas.store import ExperimentStore
 from atlas.cli import status_text
 from atlas.web import dashboard_payload, tests_payload
+from atlas.export import export_model_bundle, manifest_for, write_manifest
+from atlas.model import create_model
+from atlas.config import Settings
 
 
 class AtlasV1Tests(unittest.TestCase):
@@ -70,7 +73,22 @@ class AtlasV1Tests(unittest.TestCase):
         self.assertEqual(dashboard["current_test_number"], 1)
         self.assertEqual(dashboard["current_version"]["version"], "1")
         self.assertEqual(dashboard["current_test"]["evaluation"]["metrics"]["capability_score"], 1.0)
+        self.assertIn("what_learned", dashboard["current_test"]["learned_summary"])
         self.assertEqual(len(tests_payload(self.store)), 1)
+
+    def test_content_addressed_manifest_and_bundle(self):
+        result = AtlasController(self.store).run_one("improved")
+        experiment = self.store.latest("experiments")
+        candidate = self.store.latest("candidates")
+        manifest = manifest_for(type("Experiment", (), {"experiment_id": experiment["id"]})(), type("Candidate", (), {"candidate_id": candidate["id"], "parent_candidate_id": None, "configuration": {"strategy": "improved"}})(), {"model": "mock-v1"}, {"what_learned": "test"})
+        path, digest = write_manifest(Path(self.temp.name) / "model", manifest)
+        self.assertTrue(path.name.startswith(digest))
+        bundle = export_model_bundle(Path(self.temp.name), Path(self.temp.name) / "download.zip")
+        self.assertTrue(bundle.is_file())
+
+    def test_ollama_factory_uses_configured_model(self):
+        model = create_model(Settings(model_provider="ollama", model_name="qwen", model_endpoint="http://127.0.0.1:11434"))
+        self.assertEqual(model.metadata()["model"], "qwen")
 
 
 if __name__ == "__main__":

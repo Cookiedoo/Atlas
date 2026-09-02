@@ -8,13 +8,18 @@ from .evolution import EvolutionController
 from .models import Candidate, Discovery, Experiment, Outcome, new_id, utc_now
 from .planner import ExperimentPlanner
 from .store import ExperimentStore
+from .model import MockModel
+from .checkpoint import ModelCheckpoint
 
 
 class AtlasController:
-    def __init__(self, store: ExperimentStore, workspace: str | Path = ".atlas"):
+    def __init__(self, store: ExperimentStore, workspace: str | Path = ".atlas", model: Any | None = None, repository: str | Path | None = None, push_model: bool = False):
         self.store, self.workspace = store, Path(workspace)
         self.evolution = EvolutionController(store)
         self.planner = ExperimentPlanner()
+        self.model = model or MockModel()
+        self.repository = Path(repository) if repository else None
+        self.push_model = push_model
         self.benchmark = CodingBenchmark()
         if not any(row["id"] == "coding" and row["version"] == "1" for row in store.rows("benchmarks")):
             store.add_benchmark(self.benchmark.benchmark)
@@ -23,8 +28,10 @@ class AtlasController:
         parent = self.store.latest_champion()
         parameters = {"strategy": strategy or self.planner.select(len(self.store.rows("experiments")), [dict(row) for row in self.store.rows("discoveries")])["strategy"]}
         experiment_id = new_id("exp")
-        experiment = Experiment(experiment_id, "A deterministic candidate configuration can improve coding capability.", parameters, parent["id"] if parent else None, benchmark_id="coding", benchmark_version="1")
-        candidate = Candidate(new_id("cand"), experiment.parent_candidate_id, experiment.experiment_id, experiment.parameters, "mock-v1")
+        model_metadata = self.model.metadata()
+        self.model.generate(experiment_id + ": propose a concise research hypothesis", seed=0)
+        experiment = Experiment(experiment_id, "A deterministic candidate configuration can improve coding capability.", parameters, parent["id"] if parent else None, model_identifier=model_metadata.get("model", "mock-v1"), benchmark_id="coding", benchmark_version="1")
+        candidate = Candidate(new_id("cand"), experiment.parent_candidate_id, experiment.experiment_id, experiment.parameters, experiment.model_identifier)
         self.store.add_candidate(candidate)
         evaluation = self.benchmark.evaluate(experiment.experiment_id, candidate.candidate_id, candidate.configuration)
         self.store.add_evaluation(evaluation)
@@ -42,7 +49,10 @@ class AtlasController:
         self.store.add_experiment(completed)
         self.store.add_discovery(discovery)
         self.store.set_capability("software.python", {"score": evaluation.metrics.capability_score, "difficulty": evaluation.metrics.difficulty, "coverage": evaluation.metrics.coverage, "generalization": evaluation.metrics.generalization, "confidence": evaluation.metrics.reliability, "efficiency": evaluation.metrics.efficiency}, utc_now())
-        return {"experiment_id": experiment.experiment_id, "candidate_id": candidate.candidate_id, "outcome": outcome.value, "promoted": promoted, "score": evaluation.metrics.capability_score}
+        checkpoint = None
+        if self.repository:
+            checkpoint = ModelCheckpoint(self.repository, self.store, self.push_model).save(completed, candidate, model_metadata, analysis)
+        return {"experiment_id": experiment.experiment_id, "candidate_id": candidate.candidate_id, "outcome": outcome.value, "promoted": promoted, "score": evaluation.metrics.capability_score, "checkpoint": checkpoint}
 
     def run(self, count: int = 1) -> list[dict[str, Any]]:
         return [self.run_one() for _ in range(count)]

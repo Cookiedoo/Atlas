@@ -34,6 +34,7 @@ class ExperimentStore:
             CREATE TABLE IF NOT EXISTS lineage (candidate_id TEXT, parent_candidate_id TEXT, experiment_id TEXT, PRIMARY KEY(candidate_id, experiment_id));
             CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, experiment_id TEXT, path TEXT, sha256 TEXT, created_at TEXT);
             CREATE TABLE IF NOT EXISTS promotion_events (id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL, experiment_id TEXT NOT NULL, outcome TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS checkpoints (experiment_id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL, manifest_path TEXT NOT NULL, manifest_sha256 TEXT NOT NULL, commit_hash TEXT NOT NULL, created_at TEXT NOT NULL);
         """)
         self.connection.execute("INSERT OR IGNORE INTO schema_meta VALUES ('version', ?)", (str(SCHEMA_VERSION),))
         self.connection.commit()
@@ -74,13 +75,17 @@ class ExperimentStore:
         self.connection.execute("INSERT INTO promotion_events VALUES (?, ?, ?, ?, ?)", (promotion_id, candidate_id, experiment_id, outcome, created_at))
         self.connection.commit()
 
+    def add_checkpoint(self, experiment_id: str, candidate_id: str, manifest_path: str, manifest_sha256: str, commit_hash: str, created_at: str) -> None:
+        self.connection.execute("INSERT INTO checkpoints VALUES (?, ?, ?, ?, ?, ?)", (experiment_id, candidate_id, manifest_path, manifest_sha256, commit_hash, created_at))
+        self.connection.commit()
+
     def rows(self, table: str) -> list[sqlite3.Row]:
-        if table not in {"experiments", "candidates", "evaluations", "discoveries", "benchmarks", "lineage", "capabilities", "artifacts", "promotion_events"}:
+        if table not in {"experiments", "candidates", "evaluations", "discoveries", "benchmarks", "lineage", "capabilities", "artifacts", "promotion_events", "checkpoints"}:
             raise ValueError("unsupported table")
         return list(self.connection.execute(f"SELECT * FROM {table} ORDER BY rowid"))
 
     def latest(self, table: str) -> sqlite3.Row | None:
-        if table not in {"experiments", "candidates", "evaluations", "discoveries", "benchmarks", "capabilities", "promotion_events"}:
+        if table not in {"experiments", "candidates", "evaluations", "discoveries", "benchmarks", "capabilities", "promotion_events", "checkpoints"}:
             raise ValueError("unsupported table")
         return self.connection.execute(f"SELECT * FROM {table} ORDER BY rowid DESC LIMIT 1").fetchone()
 

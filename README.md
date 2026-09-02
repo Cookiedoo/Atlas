@@ -14,6 +14,21 @@ py -3 -m atlas.cli web --db .atlas/atlas.db
 
 Open `http://127.0.0.1:8765` for the local dashboard. It refreshes every five seconds and shows the current benchmark/model state, latest test, metrics, discovery summary, and a scrollable library of every recorded test. Select a test to open its detail popup.
 
+## Ollama and model checkpoints
+
+Atlas defaults to the deterministic mock. To connect Ollama through its local OpenAI-compatible endpoint:
+
+```powershell
+$env:ATLAS_MODEL_PROVIDER = "ollama"
+$env:ATLAS_MODEL_NAME = "llama3.2"
+$env:ATLAS_MODEL_ENDPOINT = "http://127.0.0.1:11434"
+py -3 -m atlas.cli run --count 1
+```
+
+Each run creates a content-addressed manifest under `model/manifests/` and a learned summary under `model/iterations/<experiment-id>/`. Atlas commits those model artifacts every iteration. Add `--push-model` to push each checkpoint to the configured Git remote. V1 exports a usable model manifest and six MoE component references, not a fabricated trained checkpoint; real shared-core, expert, router, and adapter weights will populate those references when training is integrated.
+
+Create a portable download of the current model skeleton with `py -3 -m atlas.cli export --output model/atlas-model-bundle.zip`. This archive contains the manifests and learned summaries, while the actual Ollama model remains managed by Ollama.
+
 The store is append-oriented: experiment, candidate, evaluation, discovery, benchmark, and lineage records are inserted as new evidence. A candidate cannot promote after a failed evaluation or regression. The deterministic coding benchmark is intentionally small; its purpose is to exercise the research machinery, not to claim model intelligence.
 
 The model boundary is in `atlas/model.py`. `MockModel` is offline and deterministic. `OpenAICompatibleModel` can connect to a local `/v1/chat/completions` endpoint when configured by an integrating application. The sandbox uses a temporary workspace and controlled subprocess timeout; stronger Windows job-object resource limits can be added behind the same interface.

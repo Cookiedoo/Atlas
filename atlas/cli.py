@@ -8,6 +8,9 @@ from .loop import AtlasController
 from .benchmark import CodingBenchmark
 from .web import serve
 from .store import ExperimentStore
+from .config import Settings
+from .model import create_model
+from .export import export_model_bundle
 
 
 def status_text(store: ExperimentStore) -> str:
@@ -48,11 +51,13 @@ def status_text(store: ExperimentStore) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="atlas")
-    parser.add_argument("command", choices=["init", "run", "experiment", "evaluate", "benchmark", "candidate", "champion", "discoveries", "capabilities", "status", "web"])
+    parser.add_argument("command", choices=["init", "run", "experiment", "evaluate", "benchmark", "candidate", "champion", "discoveries", "capabilities", "status", "web", "export"])
     parser.add_argument("--db", default=".atlas/atlas.db")
     parser.add_argument("--count", type=int, default=1)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--push-model", action="store_true", help="push each model checkpoint to GitHub")
+    parser.add_argument("--output", default="model/atlas-model-bundle.zip")
     args = parser.parse_args()
     store = ExperimentStore(args.db)
     try:
@@ -62,8 +67,11 @@ def main() -> None:
             print(f"initialized {Path(args.db).resolve()}")
         elif args.command == "web":
             serve(store, args.host, args.port)
+        elif args.command == "export":
+            print(export_model_bundle(Path.cwd(), args.output))
         elif args.command in {"run", "experiment"}:
-            for result in AtlasController(store).run(args.count):
+            settings = Settings.from_environment()
+            for result in AtlasController(store, settings.experiment_workspace, create_model(settings), Path.cwd(), args.push_model).run(args.count):
                 print(result)
         elif args.command == "champion":
             print(dict(store.latest_champion()) if store.latest_champion() else "no champion")

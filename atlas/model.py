@@ -33,3 +33,13 @@ class OpenAICompatibleModel(ModelAdapter):
 
     def metadata(self) -> dict[str, Any]:
         return {"provider": "openai-compatible", "model": self.model, "endpoint": self.endpoint}
+
+
+def create_model(settings: Any) -> ModelAdapter:
+    if settings.model_provider == "mock":
+        return MockModel()
+    if settings.model_provider in {"ollama", "openai-compatible"}:
+        if not settings.model_endpoint:
+            raise ValueError("ATLAS_MODEL_ENDPOINT is required for Ollama/openai-compatible models")
+        return OpenAICompatibleModel(settings.model_endpoint, settings.model_name, settings.timeout_seconds)
+    raise ValueError(f"unsupported model provider: {settings.model_provider}")

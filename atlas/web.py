@@ -65,7 +65,10 @@ def test_detail(store: ExperimentStore, evaluation_id: str) -> dict[str, Any] | 
     experiment = store.connection.execute("SELECT * FROM experiments WHERE id = ?", (evaluation["experiment_id"],)).fetchone()
     candidate = store.connection.execute("SELECT * FROM candidates WHERE id = ?", (evaluation["candidate_id"],)).fetchone()
     discovery = store.connection.execute("SELECT * FROM discoveries WHERE source_experiment_id = ? ORDER BY rowid DESC LIMIT 1", (evaluation["experiment_id"],)).fetchone()
-    return {"test_number": list(reversed([row["id"] for row in store.rows("evaluations")])).index(evaluation_id) + 1, "evaluation": {**dict(evaluation), "metrics": _json(evaluation["metrics"], {})}, "experiment": {**dict(experiment), "parameters": _json(experiment["parameters"], {}), "analysis": _json(experiment["analysis"], {})} if experiment else None, "candidate": candidate_payload(candidate), "discovery": dict(discovery) if discovery else None}
+    checkpoint = store.connection.execute("SELECT * FROM checkpoints WHERE experiment_id = ?", (evaluation["experiment_id"],)).fetchone()
+    analysis = _json(experiment["analysis"], {}) if experiment else {}
+    learned_summary = {"what_learned": analysis.get("what_learned", ""), "what_changed": analysis.get("what_changed", {}), "what_failed": analysis.get("what_failed"), "next_experiment": analysis.get("next_experiment", "")}
+    return {"test_number": list(reversed([row["id"] for row in store.rows("evaluations")])).index(evaluation_id) + 1, "evaluation": {**dict(evaluation), "metrics": _json(evaluation["metrics"], {})}, "experiment": {**dict(experiment), "parameters": _json(experiment["parameters"], {}), "analysis": analysis} if experiment else None, "candidate": candidate_payload(candidate), "discovery": dict(discovery) if discovery else None, "learned_summary": learned_summary, "checkpoint": dict(checkpoint) if checkpoint else None}
 
 
 class AtlasHandler(BaseHTTPRequestHandler):
