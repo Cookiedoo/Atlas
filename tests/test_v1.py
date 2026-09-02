@@ -79,6 +79,12 @@ class AtlasV1Tests(unittest.TestCase):
         self.assertIn("what_learned", dashboard["current_test"]["learned_summary"])
         self.assertEqual(len(tests_payload(self.store)), 1)
 
+    def test_test_numbers_are_absolute_not_newest_relative(self):
+        AtlasController(self.store).run_one("baseline")
+        AtlasController(self.store).run_one("improved")
+        records = tests_payload(self.store)
+        self.assertEqual([record["test_number"] for record in records], [2, 1])
+
     def test_content_addressed_manifest_and_bundle(self):
         result = AtlasController(self.store).run_one("improved")
         experiment = self.store.latest("experiments")
@@ -104,8 +110,9 @@ class AtlasV1Tests(unittest.TestCase):
     @unittest.skipUnless(torch is not None, "PyTorch optional dependency is not installed")
     def test_moe_iteration_persists_atlas_evidence(self):
         result = run_moe_iteration(self.store, Path(self.temp.name) / "model", seed=3)
-        self.assertEqual(result["outcome"], "IMPROVEMENT")
+        self.assertIn(result["outcome"], {"IMPROVEMENT", "REGRESSION"})
         self.assertTrue(result["router_changed"])
+        self.assertGreaterEqual(result["score"], 0.0)
         self.assertEqual(len(self.store.rows("experiments")), 2)
         self.assertEqual(len(self.store.rows("evaluations")), 1)
         self.assertIsNotNone(self.store.latest_champion())

@@ -104,6 +104,9 @@ def run_moe_iteration(store: ExperimentStore, root: str | Path, repository: str 
     existing_count = len(store.connection.execute("SELECT id FROM candidates WHERE model_identifier = 'Atlas-MoE'").fetchall())
     child_id = f"atlas-moe-{existing_count + 1:04d}"
     experiment_id = new_id("exp")
+    probe = torch.ones(4, parent_model.config["input_size"])
+    parent_output = parent_model.infer(probe)["output"]
+    parent_score = 1.0 / (1.0 + float(parent_output.pow(2).mean()))
     child_model = copy.deepcopy(parent_model)
     mutation = child_model.mutate_router(seed=seed, steps=1)
     experiment = Experiment(experiment_id, "A router-only tensor mutation can produce a reconstructible Atlas-MoE child.", {"organism": "Atlas-MoE", "mutation": "router", "seed": seed}, parent_id, child_id, "atlas-moe-smoke", "1", "Atlas-MoE", seed)
@@ -112,14 +115,20 @@ def run_moe_iteration(store: ExperimentStore, root: str | Path, repository: str 
     reconstructed_probe = component_store.save_candidate(child_id, parent_id, child_model, {"role": "router-mutation", "mutation": mutation})
     reconstructed = component_store.load_candidate(reconstructed_probe[0])
     inference = reconstructed.infer(torch.ones(2, reconstructed.config["input_size"]))
-    evaluation = Evaluation(new_id("eval"), experiment_id, child_id, "atlas-moe-smoke", "1", Metrics(1.0 if mutation["changed"] else 0.0, difficulty=0.1, coverage=1.0, generalization=1.0, reliability=1.0, efficiency=1.0, novelty=1.0, information_value=1.0), bool(mutation["changed"]))
+    child_output = reconstructed.infer(probe)["output"]
+    child_error = float(child_output.pow(2).mean())
+    child_score = 1.0 / (1.0 + child_error)
+    evaluation = Evaluation(new_id("eval"), experiment_id, child_id, "atlas-moe-smoke", "1", Metrics(child_score, difficulty=0.1, coverage=1.0, generalization=child_score, reliability=1.0 if mutation["changed"] else 0.0, efficiency=1.0, novelty=1.0, information_value=1.0), bool(mutation["changed"]))
     store.add_evaluation(evaluation)
-    analysis = {"what_learned": "The router can mutate independently while all four expert blobs remain shared.", "what_changed": {"component": "router", "router_changed": mutation["changed"]}, "what_did_not_change": {"expert_components": 4}, "what_failed": None, "why": "A deterministic one-step router mutation was applied and reloaded.", "new_question": "Does router evolution improve a task benchmark?", "next_experiment": "Evaluate the reconstructed child on a task benchmark."}
-    completed = Experiment(experiment_id, experiment.hypothesis, experiment.parameters, parent_id, child_id, "atlas-moe-smoke", "1", "Atlas-MoE", seed, "completed", "IMPROVEMENT" if evaluation.passed else "FAILURE", analysis, [analysis["what_learned"]], experiment.created_at)
+    analysis = {"what_learned": "The router can mutate independently while all four expert blobs remain shared.", "what_changed": {"component": "router", "router_changed": mutation["changed"], "parent_score": parent_score, "child_score": child_score}, "what_did_not_change": {"expert_components": 4}, "what_failed": None, "why": "A deterministic one-step router mutation was applied and reloaded, then scored against a fixed zero target.", "new_question": "Does router evolution improve a task benchmark?", "next_experiment": "Evaluate the reconstructed child on a task benchmark."}
+    outcome = "IMPROVEMENT" if evaluation.passed and (parent_id == "atlas-moe-0000" or child_score >= parent_score) else "REGRESSION" if evaluation.passed else "FAILURE"
+    completed = Experiment(experiment_id, experiment.hypothesis, experiment.parameters, parent_id, child_id, "atlas-moe-smoke", "1", "Atlas-MoE", seed, "completed", outcome, analysis, [analysis["what_learned"]], experiment.created_at)
     store.add_experiment(completed)
-    discovery = Discovery(new_id("disc"), experiment_id, analysis["what_learned"], {"mutation": mutation, "selected_experts": inference["selected_experts"]}, "KNOWN", domain="model evolution", mechanism="router-only tensor update", validation_status="validated")
+    discovery = Discovery(new_id("disc"), experiment_id, analysis["what_learned"], {"mutation": mutation, "parent_score": parent_score, "child_score": child_score, "selected_experts": inference["selected_experts"]}, "KNOWN", domain="model evolution", mechanism="router-only tensor update", validation_status="validated")
     store.add_discovery(discovery)
-    store.add_promotion(new_id("promotion"), child_id, experiment_id, completed.outcome, utc_now())
+    promoted = completed.outcome == "IMPROVEMENT"
+    if promoted:
+        store.add_promotion(new_id("promotion"), child_id, experiment_id, completed.outcome, utc_now())
     component_references = [reconstructed_probe[1]["shared_core"], reconstructed_probe[1]["router"], *reconstructed_probe[1]["experts"].values()]
     for reference in component_references:
         store.add_artifact(new_id("artifact"), experiment_id, str(root / reference["path"]), reference["sha256"], utc_now())
@@ -137,4 +146,4 @@ def run_moe_iteration(store: ExperimentStore, root: str | Path, repository: str 
             subprocess.run(["git", "push"], cwd=repository, capture_output=True, text=True, timeout=30, check=True)
         store.add_checkpoint(experiment_id, child_id, str(reconstructed_probe[0]), reconstructed_probe[1]["manifest_sha256"], commit, utc_now())
         checkpoint = {"commit": commit, "manifest": str(reconstructed_probe[0]), "manifest_sha256": reconstructed_probe[1]["manifest_sha256"]}
-    return {"experiment_id": experiment_id, "parent_candidate": parent_id, "child_candidate": child_id, "outcome": completed.outcome, "router_changed": mutation["changed"], "unchanged_expert_components": 4, "selected_experts": inference["selected_experts"], "checkpoint": checkpoint}
+    return {"experiment_id": experiment_id, "parent_candidate": parent_id, "child_candidate": child_id, "outcome": completed.outcome, "promoted": promoted, "score": child_score, "router_changed": mutation["changed"], "unchanged_expert_components": 4, "selected_experts": inference["selected_experts"], "checkpoint": checkpoint}

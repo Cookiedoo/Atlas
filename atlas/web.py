@@ -72,7 +72,8 @@ def test_detail(store: ExperimentStore, evaluation_id: str) -> dict[str, Any] | 
     checkpoint = store.connection.execute("SELECT * FROM checkpoints WHERE experiment_id = ?", (evaluation["experiment_id"],)).fetchone()
     analysis = _json(experiment["analysis"], {}) if experiment else {}
     learned_summary = {"what_learned": analysis.get("what_learned", ""), "what_changed": analysis.get("what_changed", {}), "what_failed": analysis.get("what_failed"), "next_experiment": analysis.get("next_experiment", "")}
-    return {"test_number": list(reversed([row["id"] for row in store.rows("evaluations")])).index(evaluation_id) + 1, "evaluation": {**dict(evaluation), "metrics": _json(evaluation["metrics"], {})}, "experiment": {**dict(experiment), "parameters": _json(experiment["parameters"], {}), "analysis": analysis} if experiment else None, "candidate": candidate_payload(candidate), "discovery": dict(discovery) if discovery else None, "learned_summary": learned_summary, "checkpoint": dict(checkpoint) if checkpoint else None}
+    test_number = next(index for index, row in enumerate(store.rows("evaluations"), start=1) if row["id"] == evaluation_id)
+    return {"test_number": test_number, "evaluation": {**dict(evaluation), "metrics": _json(evaluation["metrics"], {})}, "experiment": {**dict(experiment), "parameters": _json(experiment["parameters"], {}), "analysis": analysis} if experiment else None, "candidate": candidate_payload(candidate), "discovery": dict(discovery) if discovery else None, "learned_summary": learned_summary, "checkpoint": dict(checkpoint) if checkpoint else None}
 
 
 class AtlasHandler(BaseHTTPRequestHandler):
