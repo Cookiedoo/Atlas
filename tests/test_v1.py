@@ -1,6 +1,8 @@
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 from atlas.benchmark import CodingBenchmark
@@ -8,6 +10,7 @@ from atlas.loop import AtlasController
 from atlas.models import Candidate, Experiment, new_id
 from atlas.sandbox import Sandbox
 from atlas.store import ExperimentStore
+from atlas.cli import status_text
 
 
 class AtlasV1Tests(unittest.TestCase):
@@ -48,6 +51,17 @@ class AtlasV1Tests(unittest.TestCase):
         failure = sandbox.run("raise RuntimeError('bad')")
         timeout = sandbox.run("while True: pass")
         self.assertTrue(success.success); self.assertFalse(failure.success); self.assertTrue(timeout.timed_out)
+
+    def test_status_display_is_useful_for_empty_and_populated_store(self):
+        empty = status_text(self.store)
+        self.assertIn("Experiment: no data", empty)
+        AtlasController(self.store).run_one("improved")
+        display = status_text(self.store)
+        self.assertIn("Benchmark: coding v1", display)
+        self.assertIn("Model: mock-v1", display)
+        self.assertIn("Current test: passed", display)
+        self.assertIn("Champion: ", display)
+        self.assertIn("Latest discovery: Strategy improved", display)
 
 
 if __name__ == "__main__":

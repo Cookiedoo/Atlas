@@ -79,5 +79,14 @@ class ExperimentStore:
             raise ValueError("unsupported table")
         return list(self.connection.execute(f"SELECT * FROM {table} ORDER BY rowid"))
 
+    def latest(self, table: str) -> sqlite3.Row | None:
+        if table not in {"experiments", "candidates", "evaluations", "discoveries", "benchmarks", "capabilities", "promotion_events"}:
+            raise ValueError("unsupported table")
+        return self.connection.execute(f"SELECT * FROM {table} ORDER BY rowid DESC LIMIT 1").fetchone()
+
+    def evaluation_counts(self) -> tuple[int, int, int]:
+        row = self.connection.execute("SELECT COUNT(*) AS total, COALESCE(SUM(passed), 0) AS passed FROM evaluations").fetchone()
+        return row["total"], row["passed"], row["total"] - row["passed"]
+
     def latest_champion(self) -> sqlite3.Row | None:
         return self.connection.execute("SELECT c.* FROM candidates c JOIN promotion_events p ON p.candidate_id = c.id ORDER BY p.rowid DESC LIMIT 1").fetchone()
