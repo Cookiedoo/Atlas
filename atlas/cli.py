@@ -11,6 +11,7 @@ from .store import ExperimentStore
 from .config import Settings
 from .model import create_model
 from .export import export_model_bundle
+from .web import dashboard_payload, tests_payload
 from .moe_store import evolve_router, run_moe_iteration
 
 
@@ -52,7 +53,7 @@ def status_text(store: ExperimentStore) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="atlas")
-    parser.add_argument("command", choices=["init", "run", "experiment", "evaluate", "benchmark", "candidate", "champion", "discoveries", "capabilities", "status", "web", "export", "moe-demo", "moe-run"])
+    parser.add_argument("command", choices=["init", "run", "experiment", "evaluate", "benchmark", "candidate", "champion", "discoveries", "capabilities", "status", "web", "export", "export-dashboard", "moe-demo", "moe-run"])
     parser.add_argument("--db", default=".atlas/atlas.db")
     parser.add_argument("--count", type=int, default=1)
     parser.add_argument("--host", default="127.0.0.1")
@@ -70,6 +71,11 @@ def main() -> None:
             serve(store, args.host, args.port)
         elif args.command == "export":
             print(export_model_bundle(Path.cwd(), args.output))
+        elif args.command == "export-dashboard":
+            output = Path(args.output)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps({"dashboard": dashboard_payload(store), "tests": tests_payload(store)}, indent=2) + "\n", encoding="utf-8")
+            print(output)
         elif args.command == "moe-demo":
             print(evolve_router(Path("model")))
         elif args.command == "moe-run":
