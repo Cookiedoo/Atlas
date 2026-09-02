@@ -22,15 +22,17 @@ def require_torch() -> None:
 class AtlasMoE(nn.Module if nn else object):
     """Small real sparse MoE organism owned and reconstructed by Atlas."""
 
-    def __init__(self, input_size: int = 16, hidden_size: int = 32, output_size: int = 8, top_k: int = 1):
+    def __init__(self, input_size: int = 16, hidden_size: int = 32, output_size: int = 8, top_k: int = 1, device: str | None = None):
         require_torch()
         super().__init__()
         if top_k < 1 or top_k > len(EXPERT_IDS):
             raise ValueError("top_k must be between 1 and four")
+        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         self.config = {"input_size": input_size, "hidden_size": hidden_size, "output_size": output_size, "top_k": top_k}
         self.shared_core = nn.Sequential(nn.Linear(input_size, hidden_size), nn.Tanh())
         self.experts = nn.ModuleDict({expert_id: nn.Sequential(nn.Linear(hidden_size, hidden_size), nn.ReLU(), nn.Linear(hidden_size, output_size)) for expert_id in EXPERT_IDS})
         self.router = nn.Linear(hidden_size, len(EXPERT_IDS))
+        self.to(self.device)
 
     def forward(self, inputs: Tensor) -> tuple[Tensor, Tensor]:
         shared = self.shared_core(inputs)
@@ -43,6 +45,7 @@ class AtlasMoE(nn.Module if nn else object):
 
     def infer(self, inputs: Tensor) -> dict[str, Any]:
         self.eval()
+        inputs = inputs.to(self.device)
         with torch.no_grad():
             output, indices = self(inputs)
         return {"output": output, "selected_experts": [[EXPERT_IDS[index] for index in row] for row in indices.tolist()]}
@@ -59,8 +62,8 @@ class AtlasMoE(nn.Module if nn else object):
     def mutate_router(self, seed: int = 0, steps: int = 1) -> dict[str, Any]:
         torch.manual_seed(seed)
         self.train()
-        inputs = torch.randn(8, self.config["input_size"])
-        target = torch.zeros(8, self.config["output_size"])
+        inputs = torch.randn(8, self.config["input_size"], device=self.device)
+        target = torch.zeros(8, self.config["output_size"], device=self.device)
         optimizer = torch.optim.SGD(self.router.parameters(), lr=0.05)
         before = {key: value.detach().clone() for key, value in self.router.state_dict().items()}
         loss_value = 0.0

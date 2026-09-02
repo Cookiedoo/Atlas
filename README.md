@@ -42,6 +42,8 @@ Create a portable download of the current model skeleton with `py -3 -m atlas.cl
 
 ## Real Atlas-MoE substrate
 
+For NVIDIA GPU execution, install the CUDA build with `py -3 -m pip install --force-reinstall --no-deps torch==2.14.0+cu130 --index-url https://download.pytorch.org/whl/cu130`. Atlas-MoE automatically selects CUDA when available and falls back to CPU otherwise.
+
 Install the optional local runtime with `py -3 -m pip install -e ".[torch]"`, then run `py -3 -m atlas.cli moe-demo`. The proof creates a real `AtlasMoE` parent with a shared core, coding/research/architecture/emergent experts, and top-1 router; changes router tensors; stores component blobs by SHA-256; creates a child manifest; reconstructs the child; and runs inference. Unchanged expert blobs are reused. This is Atlas-MoE, not HeliX-30B. Ollama remains an external teacher/inference provider.
 
 The store is append-oriented: experiment, candidate, evaluation, discovery, benchmark, and lineage records are inserted as new evidence. A candidate cannot promote after a failed evaluation or regression. The deterministic coding benchmark is intentionally small; its purpose is to exercise the research machinery, not to claim model intelligence.
