@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: atlas-dashboard-pages-${{ github.ref }}
+  group: pages
   cancel-in-progress: true
 
 jobs:
